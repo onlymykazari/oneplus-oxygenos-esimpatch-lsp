@@ -1,71 +1,73 @@
 # oneplus-oxygenos-esimpatch-lsp
 
-一个 LSPosed（Vector）模块，用于在 **一加 13T 刷成 OxygenOS 13s 固件**后，把系统里"半残"的 eSIM 入口接回真正可用的地方。
+**English** | [简体中文](README-CN.md)
 
-> **建议与 [`kinginu/oneplus13t-esim`](https://github.com/kinginu/oneplus13t-esim) 配合使用**：那个 Magisk 模块负责让设置里出现 eSIM 入口，本模块在此基础上把入口的动作重定向到能用的地方。
+An LSPosed (Vector) module that wires the "half-broken" eSIM entries back to something actually usable after flashing a **OnePlus 13T with OxygenOS 13s firmware**.
 
-## 背景
+> **Recommended companion to [`kinginu/oneplus13t-esim`](https://github.com/kinginu/oneplus13t-esim)**: that Magisk module makes the eSIM entry show up in Settings; this module then redirects that entry's action to something that works.
 
-一加 13T（国行）刷 OxygenOS 13s 后：
+## Background
 
-- 内部 eUICC（NXP SN220U）是**死的**——硬件在，但 CN 板没个性化，modem 读到 `CARDSTATE_ABSENT`，AP 层模块修不了；
-- Google LPA 的软件栈是**完整的**，但"添加 eSIM profile"这一步会卡在 `0x20009`（框架不把可移除卡的 EID 发布到 public euicc API）；
-- 设置里的 eSIM 页面基本是空的，单独的入口还被 OnePlus 隐藏了。
+After flashing OxygenOS 13s on a OnePlus 13T (CN model):
 
-所以真正能用的路径是：**插一张可移除 eUICC 卡（5ber / eSTK.me / 9eSIM 等），用 EasyEUICC / NekokoLPA 这类第三方 LPA 下载**。本模块就是把系统设置里那些走不通的入口，重定向到这些能用工具上。
+- The internal eUICC (NXP SN220U) is **dead** — the hardware is there, but the CN board was never personalized; the modem reports `CARDSTATE_ABSENT`. Not fixable at the AP layer.
+- The Google LPA software stack is **complete**, but the "add eSIM profile" step fails with `0x20009` (the framework does not publish the removable card's EID to the public euicc API).
+- The Settings eSIM page is basically empty, and the standalone entry is hidden by OnePlus.
 
-## 功能
+So the path that actually works: **insert a removable eUICC card (5ber / eSTK.me / 9eSIM, etc.) and download with a third-party LPA such as EasyEUICC / NekokoLPA**. This module redirects the broken Settings entries to those working tools.
 
-### Hook 1：设置入口 → Google LPA
+## Features
 
-`com.android.phone` 的 `EsimSettingsActivity`（即设置里"SIM & eSIM settings"那一项）启动后，直接跳转到 Google LPA 的原生管理页（`MANAGE_EMBEDDED_SUBSCRIPTIONS` → `CurrentProfileListActivity`），显示卡里的 profile 列表。
+### Hook 1: Settings entry → Google LPA
 
-### Hook 2：Add SIM → EasyEUICC
+When `EsimSettingsActivity` in `com.android.phone` (the "SIM & eSIM settings" item in Settings) launches, it jumps straight to the native Google LPA manager page (`MANAGE_EMBEDDED_SUBSCRIPTIONS` → `CurrentProfileListActivity`), showing the profiles on the card.
 
-`com.google.android.euicc` 的 `ProfileListFragment.mButtonAddProfile`（即 Google LPA 里的"Add SIM"）点击后，跳转到 **EasyEUICC 的 `DownloadWizardActivity`**，直接进添加 eSIM 的下载向导。
+### Hook 2: Add SIM → EasyEUICC
 
-> 为什么不用 NekokoLPA：NekokoLPA 是 Flutter 单 Activity 应用，UI 和路由都在 Dart 层，外部 Intent 无法定位到它的"添加"子页，只能落在主界面。EasyEUICC 有原生的 `DownloadWizardActivity`，能直接进下载流程。
+When `ProfileListFragment.mButtonAddProfile` in `com.google.android.euicc` (the "Add SIM" button in Google LPA) is clicked, it jumps to **EasyEUICC's `DownloadWizardActivity`**, going directly into the eSIM download wizard.
 
-## 适用范围
+> Why not NekokoLPA: NekokoLPA is a single-Activity Flutter app whose UI and routing live in the Dart layer, so an external Intent cannot target its "add" sub-page — it can only land on the main screen. EasyEUICC has a native `DownloadWizardActivity` that goes straight into the download flow.
 
-**设备**：一加 13T（`PKX110` / `CPH2723`），刷 OxygenOS 13s 固件，已 root（Magisk / KernelSU）+ 装好 LSPosed/Vector。
+## Scope
 
-**前提**：
+**Device**: OnePlus 13T (`PKX110` / `CPH2723`) running OxygenOS 13s firmware, rooted (Magisk / KernelSU) with LSPosed/Vector installed.
 
-1. 已安装 [`kinginu/oneplus13t-esim`](https://github.com/kinginu/oneplus13t-esim)（让设置里出现 eSIM 入口）；
-2. 已安装 **EasyEUICC**（`im.angry.easyeuicc.ce`），Hook 2 依赖它；
-3. 插了可移除 eUICC 卡（5ber / eSTK.me / 9eSIM），并把卡的 **ATR Mode 切到 eUICC**；
-4. 不要碰 OPPO 的 eSIM 主开关（那是内部死 eUICC 的，开了只会断 SIM2）。
+**Prerequisites**:
 
-**不适用**：真·13S（有可用内部 eUICC）、非 OxygenOS 系统（ColorOS 需要别的方案）、没有 root 的设备。
+1. [`kinginu/oneplus13t-esim`](https://github.com/kinginu/oneplus13t-esim) installed (makes the eSIM entry appear in Settings);
+2. **EasyEUICC** (`im.angry.easyeuicc.ce`) installed — Hook 2 depends on it;
+3. A removable eUICC card inserted (5ber / eSTK.me / 9eSIM) with its **ATR Mode switched to eUICC**;
+4. Do not touch OPPO's eSIM master switch (it belongs to the dead internal eUICC; enabling it only breaks SIM2).
 
-## 安装
+**Not applicable to**: the real 13S (which has a working internal eUICC), non-OxygenOS systems (ColorOS needs a different approach), or unrooted devices.
 
-1. 安装 `dist/EsimPatch-v1.2.apk`；
-2. 打开 LSPosed/Vector，启用 EsimPatch；
-3. **作用域勾选两个**：`com.android.phone` 和 `com.google.android.euicc`；
-4. 重启（或至少杀掉这两个进程）。
+## Installation
 
-## 验证
+1. Install `dist/EsimPatch-v1.2.apk`;
+2. Open LSPosed/Vector and enable EsimPatch;
+3. **Check both scope apps**: `com.android.phone` and `com.google.android.euicc`;
+4. Reboot (or at least kill both processes).
 
-- 设置 → 移动网络 → SIM & eSIM settings：应该直接进 Google LPA 的 Carrier 页面（列出 profile + Add SIM + Reset carriers）；
-- 点 **Add SIM**：应该直接进 EasyEUICC 的"Select or confirm the eSIM..."下载向导。
+## Verification
 
-## 已知限制
+- Settings → Mobile network → SIM & eSIM settings: should land directly on Google LPA's Carrier page (profile list + Add SIM + Reset carriers);
+- Tap **Add SIM**: should enter EasyEUICC's "Select or confirm the eSIM..." download wizard.
 
-- **下载仍受 `0x20009` 限制**：本模块只是把入口转到 EasyEUICC，Google LPA 自己的下载流程（不经本模块时）依然会卡住。
-- **类名/字段名依赖当前固件**：`EsimSettingsActivity`、`ProfileListFragment`、`mButtonAddProfile` 都是当前 OxygenOS 13s 版本的符号。OTA 升级后可能失效，模块日志（tag `EsimPatch`）会打印 `class not found` / `hooked Google LPA failed`，重新适配即可。
-- **弹窗**：NekokoLPA 每次启动的 "Keep this eUICC available" 提示是它自己在 Dart 层弹的，本模块不涉及（本模块改用 EasyEUICC，不会触发它）。
+## Known limitations
 
-## 构建
+- **Downloads still hit the `0x20009` limit**: this module only redirects entries to EasyEUICC; Google LPA's own download flow (when not going through this module) still gets stuck.
+- **Class/field names depend on the current firmware**: `EsimSettingsActivity`, `ProfileListFragment`, and `mButtonAddProfile` are symbols from the current OxygenOS 13s build. They may break after an OTA update — the module log (tag `EsimPatch`) will print `class not found` / `hooked Google LPA failed`, and the hooks need re-adapting.
+- **Popups**: the "Keep this eUICC available" prompt NekokoLPA shows on every launch is its own Dart-layer dialog and unrelated to this module (this module uses EasyEUICC instead, so it never triggers it).
 
-需要 Android SDK build-tools + 一个 `android.jar`：
+## Build
+
+Requires Android SDK build-tools + an `android.jar`:
 
 ```bash
 ./build.sh
 ```
 
-产物在 `dist/EsimPatch-v1.2.apk`。
+The output lands in `dist/EsimPatch-v1.2.apk`.
 
 ## License
 
